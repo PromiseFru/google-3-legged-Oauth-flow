@@ -17,6 +17,8 @@ const oauth2Client = new google.auth.OAuth2(
     REDIRECT_URL
 );
 
+let token = "";
+
 // generate a url that asks permissions for Blogger and Google Calendar scopes
 const scopes = [
     'https://www.googleapis.com/auth/userinfo.profile'
@@ -36,18 +38,44 @@ app.get("/start", (req, res, next) => {
 });
 
 // oauth callback
-app.get("/callback", (req, res, next) => {
+app.get("/callback", async (req, res, next) => {
+    let code = req.query.code;
 
+    const {
+        tokens
+    } = await oauth2Client.getToken(code)
+    oauth2Client.setCredentials(tokens);
+    token = tokens;
+
+    return res.status(200).json(token);
 });
 
 // get users profile
-app.get("/user", (req, res, next) => {
+app.get("/user", async (req, res, next) => {
+    // get profile data
+    let gmail = await google.oauth2({
+        auth: oauth2Client,
+        version: 'v2'
+    });
 
+    let profile = await gmail.userinfo.get();
+
+    return res.status(200).json(profile);
 })
 
 // revoke
-app.delete("/user", (req, res, next) => {
+app.delete("/user", async (req, res, next) => {
+    await oauth2Client.setCredentials(token);
 
+    await oauth2Client.getAccessToken(async (err, access_token) => {
+        if (err) {
+            reject(err);
+        };
+
+        await oauth2Client.revokeToken(access_token);
+
+        return res.status(200).json("successful");
+    });
 })
 
 app.listen(3000, console.log("Server running"));
