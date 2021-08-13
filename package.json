@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "nodemon .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -20,6 +21,7 @@
   "dependencies": {
     "dotenv": "^10.0.0",
     "express": "^4.17.1",
-    "googleapis": "^82.0.0"
+    "googleapis": "^82.0.0",
+    "nodemon": "^2.0.12"
   }
 }
