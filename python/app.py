@@ -1,4 +1,5 @@
 import os
+import requests
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -65,6 +66,34 @@ def email():
         user_info = user_info_service.userinfo().get().execute()
 
         return jsonify(user_info['email']), 200
+    except HttpError as error:
+        print(f'An error occurred: {error}')
+        return "internal server error", 500
+    except Exception as error:
+        print(f'An error occurred: {error}')
+        return "internal server error", 500
+
+@app.route("/revoke", methods=["GET"])
+def revoke():
+    try:
+        creds = None
+
+        if os.path.exists('token.json'):
+            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        # If there are no (valid) credentials available, let the user log in.
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+        
+        revoke = requests.post('https://oauth2.googleapis.com/revoke', params={'token': creds.token}, headers = {'content-type': 'application/x-www-form-urlencoded'})
+
+        status_code = getattr(revoke, 'status_code')
+        if status_code == 200:
+            os.remove('token.json')
+            return jsonify("Credentials successfully revoked."), 200
+        else:
+            raise Exception(getattr(revoke, 'reason'))
+
     except HttpError as error:
         print(f'An error occurred: {error}')
         return "internal server error", 500
