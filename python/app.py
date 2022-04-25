@@ -1,5 +1,7 @@
 import os
 import requests
+import sqlite3
+import json
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -23,7 +25,7 @@ def start():
 
     auth_uri = flow.authorization_url()
 
-    return jsonify(auth_uri), 200
+    return jsonify(auth_uri[0]), 200
 
 @app.route("/callback", methods=["GET"])
 def callback():
@@ -37,9 +39,22 @@ def callback():
         flow.fetch_token(code=code)
         credentials = flow.credentials
 
-        # Save the credentials for the next run
-        with open('token.json', 'w') as token:
-            token.write(credentials.to_json())
+        # store in db
+        conn = sqlite3.connect('test.db')
+
+        print ("Opened database successfully")
+
+        conn.execute("CREATE TABLE GRANTS (ID INT PRIMARY KEY NOT NULL, TOKEN TEXT NOT NULL);")
+        print ("Table created successfully")
+        
+        conn.execute("INSERT INTO GRANTS (ID, TOKEN) \
+        VALUES (1, ?)", [credentials.to_json()]);
+        conn.commit()
+        print ("Tokens created successfully");
+        conn.close()
+        # # Save the credentials for the next run
+        # with open('token.json', 'w') as token:
+        #     token.write(credentials.to_json())
 
         return "http://localhost:5000/email", 200
     except HttpError as error:
@@ -52,10 +67,16 @@ def callback():
 @app.route("/email", methods=["GET"])
 def email():
     try:
-        creds = None
+        conn = sqlite3.connect('test.db')
 
-        if os.path.exists('token.json'):
-            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        print ("Opened database successfully")
+        cursor = conn.execute("SELECT * FROM GRANTS")
+        for row in cursor:
+            creds = json.loads(row[1])
+
+        conn.close()
+
+        creds = Credentials.from_authorized_user_info(creds, SCOPES)
         # If there are no (valid) credentials available, let the user log in.
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
@@ -76,10 +97,16 @@ def email():
 @app.route("/revoke", methods=["GET"])
 def revoke():
     try:
-        creds = None
+        conn = sqlite3.connect('test.db')
 
-        if os.path.exists('token.json'):
-            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+        print ("Opened database successfully")
+        cursor = conn.execute("SELECT * FROM GRANTS")
+        for row in cursor:
+            creds = json.loads(row[1])
+
+        conn.close()
+        
+        creds = Credentials.from_authorized_user_info(creds, SCOPES)
         # If there are no (valid) credentials available, let the user log in.
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
@@ -89,7 +116,6 @@ def revoke():
 
         status_code = getattr(revoke, 'status_code')
         if status_code == 200:
-            os.remove('token.json')
             return jsonify("Credentials successfully revoked."), 200
         else:
             raise Exception(getattr(revoke, 'reason'))
